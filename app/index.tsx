@@ -1,287 +1,174 @@
 import { Stack } from 'expo-router';
 import * as React from 'react';
-import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Sun, Cloud, CloudRain, Droplets, Wind, Gauge } from 'lucide-react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
+} from 'react-native';
+import { Sun, Cloud, CloudRain, Droplets, Wind, Gauge, CloudLightning } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
+import { useQuery } from '@tanstack/react-query';
 
-// ─── Helpers fechas ─────────────────────────────
+// ─── Configuración API ──────────────────────────
+const API_KEY = 'ae713916ebe9498a9d8224315260505'; // 👈 Pon tu key aquí
+const CITY = 'Buenos Aires';
 
+async function fetchWeather() {
+  const res = await fetch(
+    `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${CITY}&days=7&aqi=no&alerts=no`
+  );
+  if (!res.ok) throw new Error('Error al obtener clima');
+  return res.json();
+}
+
+// ─── Helpers ─────────────────────────────────────
 const WEEK = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-function getDays() {
-  const today = new Date();
-  return Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(today.getDate() + i);
-
-    return {
-      label: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`,
-      week: WEEK[d.getDay()],
-    };
-  });
+function WeatherIcon({ condition, size = 200, color = '#000' }: any) {
+  const code = condition.toLowerCase();
+  if (code.includes('sun') || code.includes('clear'))
+    return <Sun size={size} color={color} strokeWidth={1.5} />;
+  if (code.includes('rain') || code.includes('patchy'))
+    return <CloudRain size={size} color={color} strokeWidth={1.5} />;
+  if (code.includes('thunder'))
+    return <CloudLightning size={size} color={color} strokeWidth={1.5} />;
+  return <Cloud size={size} color={color} strokeWidth={1.5} />;
 }
 
-// ─── Datos base (coherentes con BA) ─────────────
-
-const BASE = getDays();
-
-const DAYS = BASE.map((d, i) => {
-  const data = [
-    { temp: 21, cond: 'sunny' },
-    { temp: 24, cond: 'sunny' },
-    { temp: 22, cond: 'rain' },
-    { temp: 20, cond: 'cloudy' },
-    { temp: 16, cond: 'cloudy' },
-    { temp: 18, cond: 'sunny' },
-    { temp: 19, cond: 'cloudy' },
-  ][i];
-
-  return {
-    ...d,
-    ...data,
-    humidity: `${60 + i * 2}%`,
-    pressure: `${1010 + i} hPa`,
-    wind: `${2 + i * 0.5} m/s`,
-    timeline: [
-      { t: '9', v: data.temp - 4 },
-      { t: '12', v: data.temp - 1 },
-      { t: 'NOW', v: data.temp },
-      { t: '18', v: data.temp - 2 },
-      { t: '21', v: data.temp - 5 },
-    ],
-  };
-});
-
-// ─── ICONOS (más fieles al diseño) ─────────────
-
-function WeatherIcon({ condition }: any) {
-  if (condition === 'sunny') {
-    return <View style={styles.sun} />;
-  }
-
-  if (condition === 'rain') {
-    return (
-      <View style={styles.rainContainer}>
-        {[0, 1, 2, 3].map((i) => (
-          <View key={i} style={styles.rainBar} />
-        ))}
-      </View>
-    );
-  }
-
-  if (condition === 'cloudy') {
-    return (
-      <View style={styles.cloudContainer}>
-        <View style={styles.cloudBig} />
-        <View style={styles.cloudSmall} />
-      </View>
-    );
-  }
-
-  return null;
-}
-
-// ─── Screen ───────────────────────────────────
-
-export default function Screen() {
+export default function WeatherScreen() {
   const [idx, setIdx] = React.useState(0);
-  const day = DAYS[idx];
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['weather'],
+    queryFn: fetchWeather,
+  });
+
+  if (isLoading)
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  if (error)
+    return (
+      <View style={styles.center}>
+        <Text>Error al cargar datos</Text>
+      </View>
+    );
+
+  const forecastDays = data.forecast.forecastday;
+  const currentDay = forecastDays[idx];
+
+  // Formatear las horas para el timeline (filtramos cada 3 horas para que quepan)
+  const timelineHours = currentDay.hour.filter((_: any, i: number) => i % 4 === 0);
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* NAV */}
+        {/* NAV - Días de la semana */}
         <View style={styles.nav}>
           <TouchableOpacity onPress={() => setIdx((i) => Math.max(0, i - 1))}>
             <Text style={styles.arrow}>‹</Text>
           </TouchableOpacity>
 
           <View style={styles.days}>
-            {DAYS.map((d, i) => (
-              <Pressable key={i} onPress={() => setIdx(i)}>
-                <View style={styles.dayBlock}>
-                  <Text style={[styles.day, i === idx && styles.active]}>{d.label}</Text>
-                  <Text style={styles.week}>{d.week}</Text>
-                </View>
-              </Pressable>
-            ))}
+            {forecastDays.map((d: any, i: number) => {
+              const date = new Date(d.date + 'T00:00:00');
+              return (
+                <Pressable key={d.date} onPress={() => setIdx(i)}>
+                  <View style={styles.dayBlock}>
+                    <Text style={[styles.day, i === idx && styles.active]}>
+                      {String(date.getDate()).padStart(2, '0')}/
+                      {String(date.getMonth() + 1).padStart(2, '0')}
+                    </Text>
+                    <Text style={styles.week}>{WEEK[date.getDay()]}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
 
-          <TouchableOpacity onPress={() => setIdx((i) => Math.min(DAYS.length - 1, i + 1))}>
+          <TouchableOpacity onPress={() => setIdx((i) => Math.min(forecastDays.length - 1, i + 1))}>
             <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
         </View>
 
-        {/* CITY */}
-        <Text style={styles.city}>BUENOS AIRES</Text>
+        {/* CIUDAD */}
+        <Text style={styles.city}>{data.location.name.toUpperCase()}</Text>
 
-        {/* ICON */}
+        {/* ICONO DINÁMICO */}
         <View style={styles.iconBox}>
-          {day.cond === 'sunny' && <Sun width={200} height={200} />}
-          {day.cond === 'cloudy' && <Cloud width={200} height={200} />}
-          {day.cond === 'rain' && <CloudRain width={200} height={200} />}
+          <WeatherIcon condition={currentDay.day.condition.text} />
         </View>
 
-        {/* METRICS */}
+        {/* MÉTRICAS REALES */}
         <View style={styles.metrics}>
-          <Text style={styles.metric}>
-            <Droplets /> {day.humidity}
-          </Text>
-          <Text style={styles.metric}>
-            <Gauge /> {day.pressure}
-          </Text>
-          <Text style={styles.metric}>
-            <Wind /> {day.wind}
-          </Text>
+          <View style={styles.metricRow}>
+            <Droplets size={18} color="#666" />
+            <Text style={styles.metricText}> Humedad: {currentDay.day.avghumidity}%</Text>
+          </View>
+          <View style={styles.metricRow}>
+            <Gauge size={18} color="#666" />
+            <Text style={styles.metricText}> Presión: {currentDay.hour[0].pressure_mb} hPa</Text>
+          </View>
+          <View style={styles.metricRow}>
+            <Wind size={18} color="#666" />
+            <Text style={styles.metricText}> Viento: {currentDay.day.maxwind_kph} km/h</Text>
+          </View>
         </View>
 
-        {/* TIMELINE */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {day.timeline.map((t: any) => {
-            const now = t.t === 'NOW';
-            return (
-              <View key={t.t} style={styles.tick}>
-                <Text style={[styles.tickTemp, now && styles.now]}>{t.v}°</Text>
-                <Text style={[styles.tickTime, now && styles.now]}>{t.t}</Text>
-              </View>
-            );
-          })}
+        {/* TIMELINE POR HORAS */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timelineScroll}>
+          {timelineHours.map((h: any) => (
+            <View key={h.time} style={styles.tick}>
+              <Text style={styles.tickTemp}>{Math.round(h.temp_c)}°</Text>
+              <Text style={styles.tickTime}>{h.time.split(' ')[1]}</Text>
+            </View>
+          ))}
         </ScrollView>
 
-        {/* SOLO temperatura central */}
-        <Text style={styles.temp}>{day.temp}°</Text>
+        {/* TEMPERATURA MEDIA DEL DÍA */}
+        <Text style={styles.temp}>{Math.round(currentDay.day.avgtemp_c)}°</Text>
       </ScrollView>
     </>
   );
 }
 
-// ─── Styles ───────────────────────────────────
-
 const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   container: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingTop: 140,
+    paddingTop: 80,
     paddingHorizontal: 32,
     backgroundColor: '#fff',
   },
-
   nav: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 30,
-  },
-
-  days: { flexDirection: 'row', gap: 12 },
-
-  dayBlock: { alignItems: 'center' },
-
-  day: { fontSize: 12, color: '#bbb' },
-
-  active: {
-    color: '#000',
-    borderBottomWidth: 2,
-  },
-
-  week: { fontSize: 10, color: '#aaa' },
-
-  arrow: { fontSize: 22, color: '#555' },
-
-  city: {
-    fontSize: 26,
-    letterSpacing: 6,
-    color: '#000', // 🔥 FIX
+    alignItems: 'center',
     marginBottom: 40,
   },
-
-  iconBox: {
-    height: 240,
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-
-  sun: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    borderWidth: 7,
-    borderColor: '#000',
-  },
-
-  rainContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    transform: [{ rotate: '15deg' }],
-  },
-
-  rainBar: {
-    width: 10,
-    height: 150,
-    backgroundColor: '#000',
-    borderRadius: 4,
-  },
-
-  cloudContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-
-  cloudBig: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    borderWidth: 7,
-    borderColor: '#000',
-  },
-
-  cloudSmall: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 7,
-    borderColor: '#000',
-    marginLeft: -35,
-    marginBottom: 10,
-  },
-
-  metrics: {
-    width: '100%',
-    gap: 10,
-    marginBottom: 100,
-  },
-
-  metric: {
-    fontSize: 12,
-    color: '#666',
-  },
-
-  tick: {
-    alignItems: 'center',
-    marginRight: 14,
-  },
-
+  days: { flexDirection: 'row', gap: 10 },
+  dayBlock: { alignItems: 'center' },
+  day: { fontSize: 12, color: '#bbb' },
+  active: { color: '#000', fontWeight: 'bold', borderBottomWidth: 1 },
+  week: { fontSize: 10, color: '#aaa' },
+  arrow: { fontSize: 30, color: '#000', paddingHorizontal: 10 },
+  city: { fontSize: 22, letterSpacing: 8, fontWeight: '500', marginBottom: 20, color: 'black' },
+  iconBox: { height: 200, justifyContent: 'center', marginVertical: 20 },
+  metrics: { width: '100%', gap: 12, marginBottom: 40 },
+  metricRow: { flexDirection: 'row', alignItems: 'center' },
+  metricText: { fontSize: 14, color: '#666', marginLeft: 8 },
+  timelineScroll: { marginBottom: 20 },
+  tick: { alignItems: 'center', marginRight: 25 },
   tickTime: { fontSize: 12, color: '#aaa' },
-  tickTemp: { fontSize: 36, color: '#888', paddingTop: 20 },
-
-  now: { color: '#000', fontWeight: '600' },
-
-  line: {
-    width: 1,
-    height: 12,
-    backgroundColor: '#ccc',
-  },
-
-  lineNow: {
-    width: 2,
-    backgroundColor: '#000',
-  },
-
-  temp: {
-    fontSize: 48,
-    fontWeight: '200',
-    marginTop: 30,
-  },
+  tickTemp: { fontSize: 24, color: '#888' },
+  temp: { fontSize: 80, fontWeight: '100', marginBottom: 40 },
 });
