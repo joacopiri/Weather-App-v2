@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import * as React from 'react';
 import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-
+import { Sun, Cloud, CloudRain, Droplets, Wind, Gauge } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 
 // ─── Helpers fechas ─────────────────────────────
@@ -119,14 +119,22 @@ export default function Screen() {
 
         {/* ICON */}
         <View style={styles.iconBox}>
-          <WeatherIcon condition={day.cond} />
+          {day.cond === 'sunny' && <Sun width={200} height={200} />}
+          {day.cond === 'cloudy' && <Cloud width={200} height={200} />}
+          {day.cond === 'rain' && <CloudRain width={200} height={200} />}
         </View>
 
         {/* METRICS */}
         <View style={styles.metrics}>
-          <Text style={styles.metric}>💧 {day.humidity}</Text>
-          <Text style={styles.metric}>🌀 {day.pressure}</Text>
-          <Text style={styles.metric}>💨 {day.wind}</Text>
+          <Text style={styles.metric}>
+            <Droplets /> {day.humidity}
+          </Text>
+          <Text style={styles.metric}>
+            <Gauge /> {day.pressure}
+          </Text>
+          <Text style={styles.metric}>
+            <Wind /> {day.wind}
+          </Text>
         </View>
 
         {/* TIMELINE */}
@@ -135,9 +143,8 @@ export default function Screen() {
             const now = t.t === 'NOW';
             return (
               <View key={t.t} style={styles.tick}>
-                <Text style={[styles.tickTime, now && styles.now]}>{t.t}</Text>
                 <Text style={[styles.tickTemp, now && styles.now]}>{t.v}°</Text>
-                <View style={[styles.line, now && styles.lineNow]} />
+                <Text style={[styles.tickTime, now && styles.now]}>{t.t}</Text>
               </View>
             );
           })}
@@ -191,15 +198,15 @@ const styles = StyleSheet.create({
   },
 
   iconBox: {
-    height: 140,
+    height: 240,
     justifyContent: 'center',
     marginBottom: 20,
   },
 
   sun: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     borderWidth: 7,
     borderColor: '#000',
   },
@@ -211,8 +218,8 @@ const styles = StyleSheet.create({
   },
 
   rainBar: {
-    width: 8,
-    height: 80,
+    width: 10,
+    height: 150,
     backgroundColor: '#000',
     borderRadius: 4,
   },
@@ -223,27 +230,27 @@ const styles = StyleSheet.create({
   },
 
   cloudBig: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     borderWidth: 7,
     borderColor: '#000',
   },
 
   cloudSmall: {
-    width: 55,
-    height: 55,
-    borderRadius: 27,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 7,
     borderColor: '#000',
-    marginLeft: -25,
+    marginLeft: -35,
     marginBottom: 10,
   },
 
   metrics: {
     width: '100%',
     gap: 10,
-    marginBottom: 30,
+    marginBottom: 100,
   },
 
   metric: {
@@ -256,8 +263,8 @@ const styles = StyleSheet.create({
     marginRight: 14,
   },
 
-  tickTime: { fontSize: 10, color: '#aaa' },
-  tickTemp: { fontSize: 13, color: '#888' },
+  tickTime: { fontSize: 12, color: '#aaa' },
+  tickTemp: { fontSize: 36, color: '#888', paddingTop: 20 },
 
   now: { color: '#000', fontWeight: '600' },
 
