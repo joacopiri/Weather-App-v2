@@ -27,15 +27,15 @@ async function fetchWeather() {
 // ─── Helpers ─────────────────────────────────────
 const WEEK = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-function WeatherIcon({ condition, size = 200, color = '#000' }: any) {
+function WeatherIcon({ condition, size = 300, color = '#000' }: any) {
   const code = condition.toLowerCase();
   if (code.includes('sun') || code.includes('clear'))
-    return <Sun size={size} color={color} strokeWidth={1.5} />;
+    return <Sun size={size} color={color} strokeWidth={1.25} />;
   if (code.includes('rain') || code.includes('patchy'))
-    return <CloudRain size={size} color={color} strokeWidth={1.5} />;
+    return <CloudRain size={size} color={color} strokeWidth={1.25} />;
   if (code.includes('thunder'))
-    return <CloudLightning size={size} color={color} strokeWidth={1.5} />;
-  return <Cloud size={size} color={color} strokeWidth={1.5} />;
+    return <CloudLightning size={size} color={color} strokeWidth={1.25} />;
+  return <Cloud size={size} color={color} strokeWidth={1.25} />;
 }
 
 export default function WeatherScreen() {
@@ -65,6 +65,7 @@ export default function WeatherScreen() {
   // Formatear las horas para el timeline (filtramos cada 3 horas para que quepan)
   const timelineHours = currentDay.hour.filter((_: any, i: number) => i % 4 === 0);
 
+  console.log(timelineHours);
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -109,19 +110,28 @@ export default function WeatherScreen() {
         {/* MÉTRICAS REALES */}
         <View style={styles.metrics}>
           <View style={styles.metricRow}>
-            <Droplets size={20}/>
-            <Text style={styles.metricText}> {currentDay.day.avghumidity}
-            <Text style={{fontSize: 12,fontWeight: '300' }}>%</Text></Text>
+            <Droplets size={20} />
+            <Text style={styles.metricText}>
+              {' '}
+              {currentDay.day.avghumidity}
+              <Text style={{ fontSize: 12, fontWeight: '300' }}>%</Text>
+            </Text>
           </View>
           <View style={styles.metricRow}>
-            <Gauge size={20}/>
-            <Text style={styles.metricText}> {currentDay.hour[0].pressure_mb} 
-            <Text style={{fontSize: 12,fontWeight: '300' }}>hPa</Text></Text>
+            <Gauge size={20} />
+            <Text style={styles.metricText}>
+              {' '}
+              {currentDay.hour[0].pressure_mb}
+              <Text style={{ fontSize: 12, fontWeight: '300' }}>hPa</Text>
+            </Text>
           </View>
           <View style={styles.metricRow}>
-            <Wind size={20}/>
-            <Text style={styles.metricText}> {currentDay.day.maxwind_kph} 
-            <Text style={{fontSize: 12,fontWeight: '300' }}>km/h</Text></Text>
+            <Wind size={20} />
+            <Text style={styles.metricText}>
+              {' '}
+              {currentDay.day.maxwind_kph}
+              <Text style={{ fontSize: 12, fontWeight: '300' }}>km/h</Text>
+            </Text>
           </View>
         </View>
 
@@ -148,7 +158,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     paddingTop: 80,
-    paddingHorizontal: 32,
     backgroundColor: '#fff',
   },
   nav: {
@@ -158,15 +167,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  days: { flexDirection: 'row', gap: 10 },
+  days: { flexDirection: 'row', gap: 100, justifyContent: 'space-between' },
   dayBlock: { alignItems: 'center' },
   day: { fontSize: 12, color: '#bbb' },
   active: { color: '#000', fontWeight: 'bold', borderBottomWidth: 1 },
   week: { fontSize: 10, color: '#aaa' },
   arrow: { fontSize: 30, color: '#000', paddingHorizontal: 10 },
-  city: { fontSize: 22, letterSpacing: 8, fontWeight: '500', marginBottom: 20, color: 'black' },
-  iconBox: { height: 200, justifyContent: 'center', marginVertical: 20 },
-  metrics: { width: '100%', gap: 12, marginBottom: 40 },
+  city: { fontSize: 22, letterSpacing: 5, fontWeight: '900', marginBottom: 20, color: 'black' },
+  iconBox: { height: 300, justifyContent: 'center', marginVertical: 20 },
+  metrics: { width: '100%', gap: 12, marginBottom: 40, paddingHorizontal: 32 },
   metricRow: { flexDirection: 'row', alignItems: 'center' },
   metricText: { fontSize: 18, marginLeft: 8, fontWeight: '700' },
   timelineScroll: { marginBottom: 20 },
