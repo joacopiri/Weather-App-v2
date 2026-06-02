@@ -109,16 +109,19 @@ export default function WeatherScreen() {
         {/* MÉTRICAS REALES */}
         <View style={styles.metrics}>
           <View style={styles.metricRow}>
-            <Droplets size={18} color="#666" />
-            <Text style={styles.metricText}> Humedad: {currentDay.day.avghumidity}%</Text>
+            <Droplets size={20}/>
+            <Text style={styles.metricText}> {currentDay.day.avghumidity}
+            <Text style={{fontSize: 12,fontWeight: '300' }}>%</Text></Text>
           </View>
           <View style={styles.metricRow}>
-            <Gauge size={18} color="#666" />
-            <Text style={styles.metricText}> Presión: {currentDay.hour[0].pressure_mb} hPa</Text>
+            <Gauge size={20}/>
+            <Text style={styles.metricText}> {currentDay.hour[0].pressure_mb} 
+            <Text style={{fontSize: 12,fontWeight: '300' }}>hPa</Text></Text>
           </View>
           <View style={styles.metricRow}>
-            <Wind size={18} color="#666" />
-            <Text style={styles.metricText}> Viento: {currentDay.day.maxwind_kph} km/h</Text>
+            <Wind size={20}/>
+            <Text style={styles.metricText}> {currentDay.day.maxwind_kph} 
+            <Text style={{fontSize: 12,fontWeight: '300' }}>km/h</Text></Text>
           </View>
         </View>
 
@@ -165,7 +168,7 @@ const styles = StyleSheet.create({
   iconBox: { height: 200, justifyContent: 'center', marginVertical: 20 },
   metrics: { width: '100%', gap: 12, marginBottom: 40 },
   metricRow: { flexDirection: 'row', alignItems: 'center' },
-  metricText: { fontSize: 14, color: '#666', marginLeft: 8 },
+  metricText: { fontSize: 18, marginLeft: 8, fontWeight: '700' },
   timelineScroll: { marginBottom: 20 },
   tick: { alignItems: 'center', marginRight: 25 },
   tickTime: { fontSize: 12, color: '#aaa' },
