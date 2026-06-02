@@ -63,9 +63,18 @@ export default function WeatherScreen() {
   const currentDay = forecastDays[idx];
 
   // Formatear las horas para el timeline (filtramos cada 3 horas para que quepan)
-  const timelineHours = currentDay.hour.filter((_: any, i: number) => i % 4 === 0);
+  const timelineHours = currentDay.hour.filter((_: any, i: number) => i % 6 === 0);
 
-  console.log(timelineHours);
+  const rows = [];
+
+  for (let i = 0; i < timelineHours.length; i += 4) {
+    rows.push(timelineHours.slice(i, i + 4));
+  }
+
+  const splitRows = rows.map((row) => ({
+    left: row.slice(0, 2),
+    right: row.slice(2, 4),
+  }));
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -112,7 +121,6 @@ export default function WeatherScreen() {
           <View style={styles.metricRow}>
             <Droplets size={20} />
             <Text style={styles.metricText}>
-              {' '}
               {currentDay.day.avghumidity}
               <Text style={{ fontSize: 12, fontWeight: '300' }}>%</Text>
             </Text>
@@ -120,7 +128,6 @@ export default function WeatherScreen() {
           <View style={styles.metricRow}>
             <Gauge size={20} />
             <Text style={styles.metricText}>
-              {' '}
               {currentDay.hour[0].pressure_mb}
               <Text style={{ fontSize: 12, fontWeight: '300' }}>hPa</Text>
             </Text>
@@ -128,25 +135,57 @@ export default function WeatherScreen() {
           <View style={styles.metricRow}>
             <Wind size={20} />
             <Text style={styles.metricText}>
-              {' '}
               {currentDay.day.maxwind_kph}
               <Text style={{ fontSize: 12, fontWeight: '300' }}>km/h</Text>
             </Text>
           </View>
         </View>
 
-        {/* TIMELINE POR HORAS */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timelineScroll}>
-          {timelineHours.map((h: any) => (
-            <View key={h.time} style={styles.tick}>
-              <Text style={styles.tickTemp}>{Math.round(h.temp_c)}°</Text>
-              <Text style={styles.tickTime}>{h.time.split(' ')[1]}</Text>
-            </View>
-          ))}
-        </ScrollView>
+        <View style={styles.timelineWrapper}>
+          {/* COLUMNA IZQUIERDA */}
+          <View style={styles.column}>
+            {splitRows.map((row, i) => (
+              <View key={`l-${i}`} style={styles.block}>
+                {row.left.map((h: any) => (
+                  <View key={h.time} style={styles.tickBox}>
+                    <Text style={styles.tickTemp}>
+                      {Math.round(h.temp_c)}°
+                    </Text>
+                    <Text style={styles.tickTime}>
+                      {h.time.split(' ')[1]}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
 
-        {/* TEMPERATURA MEDIA DEL DÍA */}
-        <Text style={styles.temp}>{Math.round(currentDay.day.avgtemp_c)}°</Text>
+          {/* CENTRO */}
+          <View style={styles.centerTemp}>
+            <Text style={styles.temp}>
+              {Math.round(currentDay.day.avgtemp_c)}°
+            </Text>
+          </View>
+
+          {/* COLUMNA DERECHA */}
+          <View style={styles.column}>
+            {splitRows.map((row, i) => (
+              <View key={`r-${i}`} style={styles.block}>
+                {row.right.map((h: any) => (
+                  <View key={h.time} style={styles.tickBox}>
+                    <Text style={styles.tickTemp}>
+                      {Math.round(h.temp_c)}°
+                    </Text>
+                    <Text style={styles.tickTime}>
+                      {h.time.split(' ')[1]}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+
+        </View>
       </ScrollView>
     </>
   );
@@ -180,7 +219,13 @@ const styles = StyleSheet.create({
   metricText: { fontSize: 18, marginLeft: 8, fontWeight: '700' },
   timelineScroll: { marginBottom: 20 },
   tick: { alignItems: 'center', marginRight: 25 },
-  tickTime: { fontSize: 12, color: '#aaa' },
-  tickTemp: { fontSize: 24, color: '#888' },
-  temp: { fontSize: 80, fontWeight: '100', marginBottom: 40 },
+  
+  timelineWrapper: {flexDirection: 'row', width: '100%', alignItems: 'center'},
+  column: {flex: 1},
+  block: {flexDirection: 'row', justifyContent: 'center', gap: 5},
+  tickBox: {alignItems: 'center', width: 50, paddingTop: 20},
+  tickTemp: {fontSize: 20, color: '#111',fontWeight: '600'},
+  tickTime: {fontSize: 12, color: '#666'},
+  centerTemp: {width: 120, alignItems: 'center', justifyContent: 'center'},
+  temp: {fontSize: 80, fontWeight: '400', color: '#000'}
 });
