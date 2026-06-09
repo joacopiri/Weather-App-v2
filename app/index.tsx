@@ -4,10 +4,13 @@ import { ScrollView, StyleSheet, TouchableOpacity, View, ActivityIndicator } fro
 import { Sun, Cloud, CloudRain, Droplets, Wind, Gauge, CloudLightning } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { useQuery } from '@tanstack/react-query';
+// 1. Importamos el módulo de localización de Expo
+import * as Location from 'expo-location';
 
 // ─── Configuración API ──────────────────────────
 const API_KEY = 'ae713916ebe9498a9d8224315260505';
-const CITY = '-34.676,-58.473';
+// Ubicación por defecto (Buenos Aires) por si el usuario deniega los permisos
+const DEFAULT_CITY = '-34.676,-58.473';
 
 function getFormattedDate(date: Date) {
   const year = date.getFullYear();
@@ -16,15 +19,16 @@ function getFormattedDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-async function fetchWeather() {
+// 2. Modificamos el fetch para recibir un string con la query de localización
+async function fetchWeather(locationQuery: string) {
   const today = new Date();
 
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const yesterdayStr = getFormattedDate(yesterday);
 
-  const historyUrl = `https://api.weatherapi.com/v1/history.json?key=${API_KEY}&q=${CITY}&dt=${yesterdayStr}`;
-  const forecastUrl = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${CITY}&days=2&aqi=no&alerts=no`;
+  const historyUrl = `https://api.weatherapi.com/v1/history.json?key=${API_KEY}&q=${locationQuery}&dt=${yesterdayStr}`;
+  const forecastUrl = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${locationQuery}&days=2&aqi=no&alerts=no`;
 
   const [resHistory, resForecast] = await Promise.all([fetch(historyUrl), fetch(forecastUrl)]);
 
@@ -48,7 +52,6 @@ async function fetchWeather() {
 // ─── Helpers ─────────────────────────────────────
 const WEEK = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-// Helper único para parsear y formatear la fecha del objeto de la API sin duplicar lógicas en el JSX
 function parseDayData(dateStr: string) {
   const dateObj = new Date(`${dateStr}T00:00:00`);
   const day = String(dateObj.getDate()).padStart(2, '0');
@@ -77,21 +80,57 @@ function WeatherIcon({
 }
 
 export default function WeatherScreen() {
-  // Inicializa en 1 ya que el fetch siempre unifica [Ayer, Hoy, Mañana]
   const [idx, setIdx] = React.useState(1);
+  // Estado para guardar las coordenadas ("lat,lon")
+  const [coords, setCoords] = React.useState<string | null>(null);
+  const [locating, setLocating] = React.useState(true);
 
+  // 3. Efecto para obtener la localización del teléfono
+  React.useEffect(() => {
+    async function getUserLocation() {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status !== 'granted') {
+          // Si deniega los permisos, usamos la ubicación por defecto
+          setCoords(DEFAULT_CITY);
+          return;
+        }
+
+        // Obtenemos la localización actual con precisión equilibrada para no drenar batería
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        setCoords(`${location.coords.latitude},${location.coords.longitude}`);
+      } catch (err) {
+        console.error('Error obteniendo localización:', err);
+        setCoords(DEFAULT_CITY);
+      } finally {
+        setLocating(false);
+      }
+    }
+
+    getUserLocation();
+  }, []);
+
+  // 4. Adaptamos React Query para que no se ejecute hasta tener las coordenadas (enabled)
   const { data, isLoading, error } = useQuery({
-    queryKey: ['weather'],
-    queryFn: fetchWeather,
+    queryKey: ['weather', coords],
+    queryFn: () => fetchWeather(coords!),
+    enabled: !!coords, // No corre el fetch hasta que coords tenga valor
   });
 
-  // Redundancia eliminada: El useEffect que reseteaba a 1 no hace falta porque ya inicializamos en 1
-  // y la estructura de la query es siempre fija de 3 días estáticos.
-
-  if (isLoading)
+  // Mostramos indicador de carga mientras busca la señal GPS o resuelve la API
+  if (locating || isLoading)
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#000" />
+        {locating && (
+          <Text style={{ marginTop: 10, fontSize: 12, color: '#666' }}>
+            Buscando ubicación exacta...
+          </Text>
+        )}
       </View>
     );
 
@@ -105,7 +144,6 @@ export default function WeatherScreen() {
   const forecastDays = data.forecast.forecastday;
   const currentDay = forecastDays[idx];
 
-  // Agrupamiento y procesamiento limpio del timeline sin bucles for manuales redundantes
   const timelineHours = currentDay.hour.filter((_: any, i: number) => i % 6 === 0);
   const splitRows = [];
   for (let i = 0; i < timelineHours.length; i += 4) {
@@ -116,7 +154,6 @@ export default function WeatherScreen() {
     });
   }
 
-  // Precalculamos las fechas de los días adyacentes para simplificar el JSX
   const prevDayInfo = forecastDays[idx - 1] ? parseDayData(forecastDays[idx - 1].date) : null;
   const currentDayInfo = parseDayData(currentDay.date);
   const nextDayInfo = forecastDays[idx + 1] ? parseDayData(forecastDays[idx + 1].date) : null;
@@ -128,9 +165,8 @@ export default function WeatherScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* NAV - Días de la semana unificados */}
         <View style={styles.nav}>
-          {/* BOTÓN ANTERIOR */}
           <TouchableOpacity
-            style={[styles.navButton, idx === 0 && { opacity: 0.5 }]}
+            style={[styles.navButton, idx === 0 && { opacity: 0 }]}
             disabled={idx === 0}
             onPress={() => setIdx((i) => Math.max(0, i - 1))}>
             <Text style={styles.arrow}>‹</Text>
@@ -144,15 +180,13 @@ export default function WeatherScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* CENTRO (Seleccionado actual) */}
           <View style={styles.activeDayBlock}>
             <Text style={styles.activeDay}>{currentDayInfo.dateLabel}</Text>
             <Text style={styles.activeWeek}>{currentDayInfo.weekDay}</Text>
           </View>
 
-          {/* BOTÓN SIGUIENTE */}
           <TouchableOpacity
-            style={[styles.navButton, idx === forecastDays.length - 1 && { opacity: 0.5 }]}
+            style={[styles.navButton, idx === forecastDays.length - 1 && { opacity: 0 }]}
             disabled={idx === forecastDays.length - 1}
             onPress={() => setIdx((i) => Math.min(forecastDays.length - 1, i + 1))}>
             <View style={styles.sideDay}>
@@ -167,7 +201,7 @@ export default function WeatherScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* CIUDAD */}
+        {/* CIUDAD (Cambiará dinámicamente según donde estés) */}
         <Text style={styles.city}>{data.location.name.toUpperCase()}</Text>
 
         {/* ICONO DINÁMICO */}
@@ -263,16 +297,21 @@ const styles = StyleSheet.create({
     height: 50,
   },
   day: { fontSize: 12, color: '#666', fontWeight: '500' },
-  week: { fontSize: 10, color: '#aaa', fontWeight: '500', textAlign: 'center'},
+  week: { fontSize: 10, color: '#aaa', fontWeight: '500', textAlign: 'center' },
   arrow: { fontSize: 24, color: '#666', fontWeight: '300' },
   city: { fontSize: 22, letterSpacing: 5, fontWeight: '900', marginBottom: 20, color: 'black' },
   iconBox: { height: 300, justifyContent: 'center', marginVertical: 20 },
   metrics: { width: '100%', gap: 16, marginBottom: 40, paddingHorizontal: 40 },
   metricRow: { flexDirection: 'row', alignItems: 'center' },
   metricText: { fontSize: 18, marginLeft: 12, fontWeight: '700', color: '#000' },
-  unitText: { fontSize: 12, fontWeight: '300' }, // Agregado para limpiar los estilos en línea repetidos
+  unitText: { fontSize: 12, fontWeight: '300' },
 
-  timelineWrapper: {flexDirection: 'row', width: '100%', alignItems: 'center', paddingHorizontal: 10},
+  timelineWrapper: {
+    flexDirection: 'row',
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
   column: { flex: 1 },
   block: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   tickBox: { alignItems: 'center', width: 50, paddingTop: 10 },
@@ -281,8 +320,15 @@ const styles = StyleSheet.create({
   centerTemp: { width: 110, alignItems: 'center', justifyContent: 'center' },
   temp: { fontSize: 72, fontWeight: '300', color: '#000' },
 
-  sideDay: {alignItems: 'center', justifyContent: 'center',},
-  activeDayBlock: {alignItems: 'center', justifyContent: 'center', minWidth: 90},
-  activeDay: {fontSize: 18, fontWeight: '700', color: '#000', borderBottomWidth: 2, borderBottomColor: '#000', paddingBottom: 2},
-  activeWeek: {fontSize: 12, color: '#000', marginTop: 4, fontWeight: '600'},
+  sideDay: { alignItems: 'center', justifyContent: 'center' },
+  activeDayBlock: { alignItems: 'center', justifyContent: 'center', minWidth: 90 },
+  activeDay: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000',
+    borderBottomWidth: 2,
+    borderBottomColor: '#000',
+    paddingBottom: 2,
+  },
+  activeWeek: { fontSize: 12, color: '#000', marginTop: 4, fontWeight: '600' },
 });
