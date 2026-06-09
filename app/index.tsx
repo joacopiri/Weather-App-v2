@@ -4,12 +4,10 @@ import { ScrollView, StyleSheet, TouchableOpacity, View, ActivityIndicator } fro
 import { Sun, Cloud, CloudRain, Droplets, Wind, Gauge, CloudLightning } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { useQuery } from '@tanstack/react-query';
-// 1. Importamos el módulo de localización de Expo
 import * as Location from 'expo-location';
 
 // ─── Configuración API ──────────────────────────
 const API_KEY = 'ae713916ebe9498a9d8224315260505';
-// Ubicación por defecto (Buenos Aires) por si el usuario deniega los permisos
 const DEFAULT_CITY = '-34.676,-58.473';
 
 function getFormattedDate(date: Date) {
@@ -19,10 +17,8 @@ function getFormattedDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-// 2. Modificamos el fetch para recibir un string con la query de localización
 async function fetchWeather(locationQuery: string) {
   const today = new Date();
-
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const yesterdayStr = getFormattedDate(yesterday);
@@ -31,7 +27,6 @@ async function fetchWeather(locationQuery: string) {
   const forecastUrl = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${locationQuery}&days=2&aqi=no&alerts=no`;
 
   const [resHistory, resForecast] = await Promise.all([fetch(historyUrl), fetch(forecastUrl)]);
-
   if (!resHistory.ok || !resForecast.ok) throw new Error('Error al obtener clima');
 
   const historyData = await resHistory.json();
@@ -39,6 +34,8 @@ async function fetchWeather(locationQuery: string) {
 
   return {
     location: forecastData.location,
+    // Traemos también la data actual para cuando estemos parados en el día "Hoy"
+    current: forecastData.current,
     forecast: {
       forecastday: [
         historyData.forecast.forecastday[0], // Ayer
@@ -81,27 +78,20 @@ function WeatherIcon({
 
 export default function WeatherScreen() {
   const [idx, setIdx] = React.useState(1);
-  // Estado para guardar las coordenadas ("lat,lon")
   const [coords, setCoords] = React.useState<string | null>(null);
   const [locating, setLocating] = React.useState(true);
 
-  // 3. Efecto para obtener la localización del teléfono
   React.useEffect(() => {
     async function getUserLocation() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-
         if (status !== 'granted') {
-          // Si deniega los permisos, usamos la ubicación por defecto
           setCoords(DEFAULT_CITY);
           return;
         }
-
-        // Obtenemos la localización actual con precisión equilibrada para no drenar batería
         const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.BestForNavigation,
         });
-
         setCoords(`${location.coords.latitude},${location.coords.longitude}`);
       } catch (err) {
         console.error('Error obteniendo localización:', err);
@@ -110,18 +100,15 @@ export default function WeatherScreen() {
         setLocating(false);
       }
     }
-
     getUserLocation();
   }, []);
 
-  // 4. Adaptamos React Query para que no se ejecute hasta tener las coordenadas (enabled)
   const { data, isLoading, error } = useQuery({
     queryKey: ['weather', coords],
     queryFn: () => fetchWeather(coords!),
-    enabled: !!coords, // No corre el fetch hasta que coords tenga valor
+    enabled: !!coords,
   });
 
-  // Mostramos indicador de carga mientras busca la señal GPS o resuelve la API
   if (locating || isLoading)
     return (
       <View style={styles.center}>
@@ -144,26 +131,22 @@ export default function WeatherScreen() {
   const forecastDays = data.forecast.forecastday;
   const currentDay = forecastDays[idx];
 
-  const timelineHours = currentDay.hour.filter((_: any, i: number) => i % 6 === 0);
-  const splitRows = [];
-  for (let i = 0; i < timelineHours.length; i += 4) {
-    const chunk = timelineHours.slice(i, i + 4);
-    splitRows.push({
-      left: chunk.slice(0, 2),
-      right: chunk.slice(2, 4),
-    });
-  }
-
   const prevDayInfo = forecastDays[idx - 1] ? parseDayData(forecastDays[idx - 1].date) : null;
   const currentDayInfo = parseDayData(currentDay.date);
   const nextDayInfo = forecastDays[idx + 1] ? parseDayData(forecastDays[idx + 1].date) : null;
+
+  // Lógica para la temperatura "Now" (Actual)
+  // Si el usuario está viendo el día de "Hoy" (idx === 1), mostramos la temperatura en tiempo real de la API.
+  // Si está viendo ayer u mañana, mostramos el promedio del día (avgtemp_c) como fallback.
+  const currentTemp =
+    idx === 1 ? Math.round(data.current.temp_c) : Math.round(currentDay.day.avgtemp_c);
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* NAV - Días de la semana unificados */}
+        {/* NAV */}
         <View style={styles.nav}>
           <TouchableOpacity
             style={[styles.navButton, idx === 0 && { opacity: 0.1 }]}
@@ -201,15 +184,15 @@ export default function WeatherScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* CIUDAD (Cambiará dinámicamente según donde estés) */}
+        {/* CIUDAD */}
         <Text style={styles.city}>{data.location.name.toUpperCase()}</Text>
 
-        {/* ICONO DINÁMICO */}
+        {/* ICONO */}
         <View style={styles.iconBox}>
           <WeatherIcon condition={currentDay.day.condition.text} />
         </View>
 
-        {/* MÉTRICAS REALES */}
+        {/* MÉTRICAS */}
         <View style={styles.metrics}>
           <View style={styles.metricRow}>
             <Droplets size={20} color="#000" />
@@ -234,36 +217,33 @@ export default function WeatherScreen() {
           </View>
         </View>
 
-        {/* TIMELINE */}
-        <View style={styles.timelineWrapper}>
-          <View style={styles.column}>
-            {splitRows.map((row, i) => (
-              <View key={`l-${i}`} style={styles.block}>
-                {row.left.map((h: any) => (
-                  <View key={h.time} style={styles.tickBox}>
-                    <Text style={styles.tickTemp}>{Math.round(h.temp_c)}°</Text>
-                    <Text style={styles.tickTime}>{h.time.split(' ')[1]}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
+        {/* NUEVA SECCIÓN DE TEMPERATURAS: MIN | NOW | MAX */}
+        <View style={styles.tempContainer}>
+          {/* Mínima */}
+          <View style={styles.tempColumn}>
+            <View style={styles.relativeBox}>
+              <Text style={styles.secondaryTemp}>{Math.round(currentDay.day.mintemp_c)}</Text>
+              <Text style={styles.degreeSideSmall}>°</Text>
+            </View>
+            <Text style={styles.tempLabel}>min</Text>
           </View>
 
-          <View style={styles.centerTemp}>
-            <Text style={styles.temp}>{Math.round(currentDay.day.avgtemp_c)}°</Text>
+          {/* Actual (Resaltada) */}
+          <View style={styles.tempColumn}>
+            <View style={styles.relativeBox}>
+              <Text style={styles.mainTemp}>{currentTemp}</Text>
+              <Text style={styles.degreeSideMain}>°</Text>
+            </View>
+            <Text style={styles.mainTempLabel}>now</Text>
           </View>
 
-          <View style={styles.column}>
-            {splitRows.map((row, i) => (
-              <View key={`r-${i}`} style={styles.block}>
-                {row.right.map((h: any) => (
-                  <View key={h.time} style={styles.tickBox}>
-                    <Text style={styles.tickTemp}>{Math.round(h.temp_c)}°</Text>
-                    <Text style={styles.tickTime}>{h.time.split(' ')[1]}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
+          {/* Máxima */}
+          <View style={styles.tempColumn}>
+            <View style={styles.relativeBox}>
+              <Text style={styles.secondaryTemp}>{Math.round(currentDay.day.maxtemp_c)}</Text>
+              <Text style={styles.degreeSideSmall}>°</Text>
+            </View>
+            <Text style={styles.tempLabel}>max</Text>
           </View>
         </View>
       </ScrollView>
@@ -272,7 +252,12 @@ export default function WeatherScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
   container: {
     flexGrow: 1,
     alignItems: 'center',
@@ -280,6 +265,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingBottom: 40,
   },
+  city: {
+    fontSize: 22,
+    letterSpacing: 5,
+    fontWeight: '900',
+    marginBottom: 20,
+    color: 'black',
+  },
+  /*                              METRICAS                                 */
+  iconBox: {
+    height: 300,
+    justifyContent: 'center',
+    marginVertical: 20,
+  },
+  metrics: {
+    width: '100%',
+    gap: 16,
+    marginBottom: 40,
+    paddingHorizontal: 40,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metricText: {
+    fontSize: 18,
+    marginLeft: 12,
+    fontWeight: '700',
+    color: '#000',
+  },
+  unitText: {
+    fontSize: 12,
+    fontWeight: '300',
+  },
+
+  /*                               BUSQUEDA                                 */
   nav: {
     width: '100%',
     flexDirection: 'row',
@@ -296,32 +316,25 @@ const styles = StyleSheet.create({
     minWidth: 100,
     height: 50,
   },
-  day: { fontSize: 12, color: '#666', fontWeight: '500' },
-  week: { fontSize: 10, color: '#aaa', fontWeight: '500' },
-  arrow: { fontSize: 24, color: '#666', fontWeight: '200' },
-  city: { fontSize: 22, letterSpacing: 5, fontWeight: '900', marginBottom: 20, color: 'black' },
-  iconBox: { height: 300, justifyContent: 'center', marginVertical: 20 },
-  metrics: { width: '100%', gap: 16, marginBottom: 40, paddingHorizontal: 40 },
-  metricRow: { flexDirection: 'row', alignItems: 'center' },
-  metricText: { fontSize: 18, marginLeft: 12, fontWeight: '700', color: '#000' },
-  unitText: { fontSize: 12, fontWeight: '300' },
-
-  timelineWrapper: {
-    flexDirection: 'row',
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 10,
+  day: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
-  column: { flex: 1 },
-  block: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
-  tickBox: { alignItems: 'center', width: 50, paddingTop: 10 },
-  tickTemp: { fontSize: 18, color: '#111', fontWeight: '600' },
-  tickTime: { fontSize: 11, color: '#666', marginTop: 2 },
-  centerTemp: { width: 110, alignItems: 'center', justifyContent: 'center' },
-  temp: { fontSize: 72, fontWeight: '300', color: '#000' },
-
-  sideDay: { alignItems: 'center', justifyContent: 'center' },
-  activeDayBlock: { alignItems: 'center', justifyContent: 'center', minWidth: 90 },
+  week: {
+    fontSize: 10,
+    color: '#aaa',
+    fontWeight: '500',
+  },
+  sideDay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeDayBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 90,
+  },
   activeDay: {
     fontSize: 18,
     fontWeight: '700',
@@ -330,5 +343,76 @@ const styles = StyleSheet.create({
     borderBottomColor: '#000',
     paddingBottom: 2,
   },
-  activeWeek: { fontSize: 12, color: '#000', marginTop: 4, fontWeight: '600' },
+  activeWeek: {
+    fontSize: 12,
+    color: '#000',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  arrow: {
+    fontSize: 24,
+    color: '#666',
+    fontWeight: '200',
+  },
+  /*                              TEMPERATURA                                 */
+  tempContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingHorizontal: 20,
+  },
+  tempColumn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  // Contenedor que permite al símbolo flotar a la derecha sin ocupar ancho real
+  relativeBox: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mainTemp: {
+    fontSize: 64,
+    fontWeight: '300',
+    color: '#000',
+  },
+  secondaryTemp: {
+    fontSize: 32,
+    fontWeight: '400',
+    color: '#444',
+  },
+  // Grado absoluto para la temperatura principal (now)
+  degreeSideMain: {
+    position: 'absolute',
+    right: -18, // Se empuja hacia afuera de la caja del número
+    top: 6, // Ajusta la altura del símbolo
+    fontSize: 28,
+    fontWeight: '300',
+    color: '#000',
+  },
+  // Grado absoluto para las secundarias (min y max)
+  degreeSideSmall: {
+    position: 'absolute',
+    right: -10, // Un poco menos de margen porque el número es más chico
+    top: 2,
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#444',
+  },
+  mainTempLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  tempLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#666',
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
 });
