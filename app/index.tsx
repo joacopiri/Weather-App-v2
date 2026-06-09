@@ -166,7 +166,7 @@ export default function WeatherScreen() {
         {/* NAV - Días de la semana unificados */}
         <View style={styles.nav}>
           <TouchableOpacity
-            style={[styles.navButton, idx === 0 && { opacity: 0 }]}
+            style={[styles.navButton, idx === 0 && { opacity: 0.1 }]}
             disabled={idx === 0}
             onPress={() => setIdx((i) => Math.max(0, i - 1))}>
             <Text style={styles.arrow}>‹</Text>
@@ -186,7 +186,7 @@ export default function WeatherScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.navButton, idx === forecastDays.length - 1 && { opacity: 0 }]}
+            style={[styles.navButton, idx === forecastDays.length - 1 && { opacity: 0.1 }]}
             disabled={idx === forecastDays.length - 1}
             onPress={() => setIdx((i) => Math.min(forecastDays.length - 1, i + 1))}>
             <View style={styles.sideDay}>
@@ -297,8 +297,8 @@ const styles = StyleSheet.create({
     height: 50,
   },
   day: { fontSize: 12, color: '#666', fontWeight: '500' },
-  week: { fontSize: 10, color: '#aaa', fontWeight: '500', textAlign: 'center' },
-  arrow: { fontSize: 24, color: '#666', fontWeight: '300' },
+  week: { fontSize: 10, color: '#aaa', fontWeight: '500' },
+  arrow: { fontSize: 24, color: '#666', fontWeight: '200' },
   city: { fontSize: 22, letterSpacing: 5, fontWeight: '900', marginBottom: 20, color: 'black' },
   iconBox: { height: 300, justifyContent: 'center', marginVertical: 20 },
   metrics: { width: '100%', gap: 16, marginBottom: 40, paddingHorizontal: 40 },
