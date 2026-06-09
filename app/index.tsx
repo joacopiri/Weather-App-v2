@@ -14,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 
 // ─── Configuración API ──────────────────────────
 const API_KEY = 'ae713916ebe9498a9d8224315260505'; // 👈 Pon tu key aquí
-const CITY = 'Buenos Aires';
+const CITY = '-34.676,-58.473';
 
 async function fetchWeather() {
   const res = await fetch(
@@ -25,7 +25,7 @@ async function fetchWeather() {
 }
 
 // ─── Helpers ─────────────────────────────────────
-const WEEK = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const WEEK = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 function WeatherIcon({ condition, size = 300, color = '#000' }: any) {
   const code = condition.toLowerCase();
@@ -82,29 +82,62 @@ export default function WeatherScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* NAV - Días de la semana */}
         <View style={styles.nav}>
-          <TouchableOpacity onPress={() => setIdx((i) => Math.max(0, i - 1))}>
-            <Text style={styles.arrow}>‹</Text>
+          <TouchableOpacity disabled={idx === 0} onPress={() => setIdx((i) => Math.max(0, i - 1))}>
+            <Text style={[styles.arrow, idx === 0 && { opacity: 0.3 }]}>‹</Text>
           </TouchableOpacity>
 
-          <View style={styles.days}>
-            {forecastDays.map((d: any, i: number) => {
-              const date = new Date(d.date + 'T00:00:00');
-              return (
-                <Pressable key={d.date} onPress={() => setIdx(i)}>
-                  <View style={styles.dayBlock}>
-                    <Text style={[styles.day, i === idx && styles.active]}>
-                      {String(date.getDate()).padStart(2, '0')}/
-                      {String(date.getMonth() + 1).padStart(2, '0')}
-                    </Text>
-                    <Text style={styles.week}>{WEEK[date.getDay()]}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
+          <View style={styles.centerDays}>
+            {/* Anterior */}
+            <View style={styles.sideDay}>
+              {forecastDays[idx - 1] && (
+                <>
+                  <Text style={styles.day}>
+                    {String(new Date(forecastDays[idx - 1].date).getDate()).padStart(2, '0')}/
+                    {String(new Date(forecastDays[idx - 1].date).getMonth() + 1).padStart(2, '0')}
+                  </Text>
+
+                  <Text style={styles.week}>
+                    {WEEK[(new Date(forecastDays[idx - 1].date).getDay() + 6) % 7]}
+                  </Text>
+                </>
+              )}
+            </View>
+
+            {/* CENTRO (seleccionado) */}
+            <View style={styles.activeDayBlock}>
+              <Text style={styles.activeDay}>
+                {String(new Date(forecastDays[idx].date).getDate()).padStart(2, '0')}/
+                {String(new Date(forecastDays[idx].date).getMonth() + 1).padStart(2, '0')}
+              </Text>
+
+              <Text style={styles.activeWeek}>
+                {WEEK[(new Date(forecastDays[idx].date).getDay() + 6) % 7]}
+              </Text>
+            </View>
+
+            {/* Siguiente */}
+            <View style={styles.sideDay}>
+              {forecastDays[idx + 1] && (
+                <>
+                  <Text style={styles.day}>
+                    {String(new Date(forecastDays[idx + 1].date).getDate()).padStart(2, '0')}/
+                    {String(new Date(forecastDays[idx + 1].date).getMonth() + 1).padStart(2, '0')}
+                  </Text>
+
+                  <Text style={styles.week}>
+                    {WEEK[(new Date(forecastDays[idx + 1].date).getDay() + 6) % 7]}
+                  </Text>
+                </>
+              )}
+            </View>
           </View>
 
-          <TouchableOpacity onPress={() => setIdx((i) => Math.min(forecastDays.length - 1, i + 1))}>
-            <Text style={styles.arrow}>›</Text>
+          <TouchableOpacity
+            disabled={idx === forecastDays.length - 1}
+            onPress={() => setIdx((i) => Math.min(forecastDays.length - 1, i + 1))}>
+            <Text style={[styles.arrow, idx === forecastDays.length - 1 && { opacity: 0.3 }]}>
+              ›
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -148,12 +181,8 @@ export default function WeatherScreen() {
               <View key={`l-${i}`} style={styles.block}>
                 {row.left.map((h: any) => (
                   <View key={h.time} style={styles.tickBox}>
-                    <Text style={styles.tickTemp}>
-                      {Math.round(h.temp_c)}°
-                    </Text>
-                    <Text style={styles.tickTime}>
-                      {h.time.split(' ')[1]}
-                    </Text>
+                    <Text style={styles.tickTemp}>{Math.round(h.temp_c)}°</Text>
+                    <Text style={styles.tickTime}>{h.time.split(' ')[1]}</Text>
                   </View>
                 ))}
               </View>
@@ -162,9 +191,7 @@ export default function WeatherScreen() {
 
           {/* CENTRO */}
           <View style={styles.centerTemp}>
-            <Text style={styles.temp}>
-              {Math.round(currentDay.day.avgtemp_c)}°
-            </Text>
+            <Text style={styles.temp}>{Math.round(currentDay.day.avgtemp_c)}°</Text>
           </View>
 
           {/* COLUMNA DERECHA */}
@@ -173,18 +200,13 @@ export default function WeatherScreen() {
               <View key={`r-${i}`} style={styles.block}>
                 {row.right.map((h: any) => (
                   <View key={h.time} style={styles.tickBox}>
-                    <Text style={styles.tickTemp}>
-                      {Math.round(h.temp_c)}°
-                    </Text>
-                    <Text style={styles.tickTime}>
-                      {h.time.split(' ')[1]}
-                    </Text>
+                    <Text style={styles.tickTemp}>{Math.round(h.temp_c)}°</Text>
+                    <Text style={styles.tickTime}>{h.time.split(' ')[1]}</Text>
                   </View>
                 ))}
               </View>
             ))}
           </View>
-
         </View>
       </ScrollView>
     </>
@@ -219,13 +241,47 @@ const styles = StyleSheet.create({
   metricText: { fontSize: 18, marginLeft: 8, fontWeight: '700' },
   timelineScroll: { marginBottom: 20 },
   tick: { alignItems: 'center', marginRight: 25 },
-  
-  timelineWrapper: {flexDirection: 'row', width: '100%', alignItems: 'center'},
-  column: {flex: 1},
-  block: {flexDirection: 'row', justifyContent: 'center', gap: 5},
-  tickBox: {alignItems: 'center', width: 50, paddingTop: 20},
-  tickTemp: {fontSize: 20, color: '#111',fontWeight: '600'},
-  tickTime: {fontSize: 12, color: '#666'},
-  centerTemp: {width: 120, alignItems: 'center', justifyContent: 'center'},
-  temp: {fontSize: 80, fontWeight: '400', color: '#000'}
+
+  timelineWrapper: { flexDirection: 'row', width: '100%', alignItems: 'center' },
+  column: { flex: 1 },
+  block: { flexDirection: 'row', justifyContent: 'center', gap: 5 },
+  tickBox: { alignItems: 'center', width: 50, paddingTop: 20 },
+  tickTemp: { fontSize: 20, color: '#111', fontWeight: '600' },
+  tickTime: { fontSize: 12, color: '#666' },
+  centerTemp: { width: 120, alignItems: 'center', justifyContent: 'center' },
+  temp: { fontSize: 80, fontWeight: '400', color: '#000' },
+
+  centerDays: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 40,
+  },
+
+  sideDay: {
+    width: 70,
+    alignItems: 'center',
+    opacity: 0.4,
+  },
+
+  activeDayBlock: {
+    alignItems: 'center',
+    minWidth: 90,
+  },
+
+  activeDay: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000',
+    borderBottomWidth: 2,
+    borderBottomColor: '#000',
+    paddingBottom: 4,
+  },
+
+  activeWeek: {
+    fontSize: 12,
+    color: '#000',
+    marginTop: 4,
+    fontWeight: '600',
+  },
 });
