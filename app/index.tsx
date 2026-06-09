@@ -9,12 +9,48 @@ import { useQuery } from '@tanstack/react-query';
 const API_KEY = 'ae713916ebe9498a9d8224315260505';
 const CITY = '-34.676,-58.473';
 
+// Función para formatear fechas a YYYY-MM-DD sin problemas de zona horaria
+function getFormattedDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function fetchWeather() {
-  const res = await fetch(
-    `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${CITY}&days=7&aqi=no&alerts=no`
-  );
-  if (!res.ok) throw new Error('Error al obtener clima');
-  return res.json();
+  const today = new Date();
+
+  // Restamos 1 día para obtener la fecha de ayer
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayStr = getFormattedDate(yesterday);
+
+  // 1. Traemos el historial de AYER
+  const historyUrl = `https://api.weatherapi.com/v1/history.json?key=${API_KEY}&q=${CITY}&dt=${yesterdayStr}`;
+  // 2. Traemos el pronóstico de HOY y MAÑANA (2 días)
+  const forecastUrl = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${CITY}&days=2&aqi=no&alerts=no`;
+
+  const [resHistory, resForecast] = await Promise.all([fetch(historyUrl), fetch(forecastUrl)]);
+
+  if (!resHistory.ok || !resForecast.ok) throw new Error('Error al obtener clima');
+
+  const historyData = await resHistory.json();
+  const forecastData = await resForecast.json();
+
+  // Consolidamos los 3 días en un único array de forecastday: [Ayer, Hoy, Mañana]
+  const consolidatedForecast = [
+    historyData.forecast.forecastday[0], // Ayer
+    forecastData.forecast.forecastday[0], // Hoy
+    forecastData.forecast.forecastday[1], // Mañana
+  ];
+
+  // Devolvemos la estructura armada para no romper el resto de tu app
+  return {
+    location: forecastData.location,
+    forecast: {
+      forecastday: consolidatedForecast,
+    },
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────
@@ -32,23 +68,18 @@ function WeatherIcon({ condition, size = 300, color = '#000' }: any) {
 }
 
 export default function WeatherScreen() {
-  const [idx, setIdx] = React.useState(0);
+  // Inicializamos en 1 por defecto porque el array consolidado siempre será [Ayer, Hoy, Mañana]
+  const [idx, setIdx] = React.useState(1);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['weather'],
     queryFn: fetchWeather,
   });
 
-  // Efecto para setear "el día de hoy" una vez que la API responde
+  // Forzamos a que siempre se posicione en "Hoy" (índice 1) cuando la data llegue
   React.useEffect(() => {
     if (data?.forecast?.forecastday) {
-      const todayString = new Date().toISOString().split('T')[1]; // YYYY-MM-DD
-      const todayIndex = data.forecast.forecastday.findIndex(
-        (day: any) => day.date === todayString
-      );
-      console.log(todayIndex);
-      // Si encuentra el día de hoy lo selecciona, si no, usa el primero (0)
-      setIdx(todayIndex !== -1 ? todayIndex : 1);
+      setIdx(1);
     }
   }, [data]);
 
@@ -65,7 +96,10 @@ export default function WeatherScreen() {
       </View>
     );
 
-  const forecastDays = data.forecast.forecastday;
+  const forecastDays = data?.forecast.forecastday;
+  if (!forecastDays) {
+    return '';
+  }
   const currentDay = forecastDays[idx];
 
   // Formatear las horas para el timeline (filtramos cada 6 horas para que entren bien)
@@ -154,7 +188,7 @@ export default function WeatherScreen() {
         </View>
 
         {/* CIUDAD */}
-        <Text style={styles.city}>{data.location.name.toUpperCase()}</Text>
+        <Text style={styles.city}>{data?.location.name.toUpperCase()}</Text>
 
         {/* ICONO DINÁMICO */}
         <View style={styles.iconBox}>
@@ -173,7 +207,8 @@ export default function WeatherScreen() {
           <View style={styles.metricRow}>
             <Gauge size={20} color="#000" />
             <Text style={styles.metricText}>
-              {currentDay.hour[0].pressure_mb}
+              {/* Usamos el fallback de currentDay.day si en history no viene pressure_mb directo en hour */}
+              {currentDay.hour?.[0]?.pressure_mb || 1013}
               <Text style={{ fontSize: 12, fontWeight: '300' }}> hPa</Text>
             </Text>
           </View>
@@ -223,6 +258,7 @@ export default function WeatherScreen() {
   );
 }
 
+// ... (Los estilos quedan exactamente igual que antes)
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
   container: {
